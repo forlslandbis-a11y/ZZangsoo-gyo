@@ -287,36 +287,51 @@ function renderWrite(){
 }
 
 /* ---------- 댓글 (posts/{글ID}/comments 하위 컬렉션) ---------- */
-const cmCache = {}, cmUnsub = {}, drafts = {};
-const failMsg = (e, fallback) => (e && e.code === "permission-denied") ? "권한이 없습니다. Firestore 규칙을 확인해 주세요." : fallback;
+const cmCache = {}, cmUnsub = {}, cmErr = {}, drafts = {};
+const failMsg = (e, fallback) => (e && e.code === "permission-denied")
+  ? "권한이 없습니다. Firestore 규칙이 댓글(하위 컬렉션)을 허용하는지 확인해 주세요."
+  : fallback + (e && e.code ? " (" + e.code + ")" : "");
+const cmBox = id => document.querySelector('[data-cm="' + id + '"]');
+const cmMsg = (id, text) => { const m = document.querySelector('[data-cmmsg="' + id + '"]'); if (m) m.textContent = text || ""; };
 
 function watchComments(id){
   if (!fb || cmUnsub[id]) return;
   const F = fb.F;
+  delete cmErr[id];
+  const timer = setTimeout(() => { if (!cmCache[id] && !cmErr[id]) { cmErr[id] = "응답이 없어요. 네트워크나 Firestore 규칙을 확인해 주세요."; renderCommentList(id); } }, 8000);
   cmUnsub[id] = F.onSnapshot(F.query(F.collection(fb.db, "posts", id, "comments"), F.orderBy("createdAt", "asc")), snap => {
+    clearTimeout(timer); delete cmErr[id];
     cmCache[id] = snap.docs.map(d => ({id:d.id, ...d.data()}));
     renderCommentList(id);
-  }, () => {
-    const box = document.querySelector('[data-cm="' + id + '"]');
-    if (box) box.replaceChildren(h("p", {class:"note", text:"댓글을 불러오지 못했습니다."}));
+  }, e => {
+    clearTimeout(timer);
+    cmErr[id] = failMsg(e, "댓글을 불러오지 못했습니다.");
+    setTimeout(() => { delete cmUnsub[id]; }, 0);   // 다음에 다시 열면 재시도되도록 구독 정보를 지움
+    renderCommentList(id);
   });
 }
 function unwatchComments(id){ if (cmUnsub[id]) { cmUnsub[id](); delete cmUnsub[id]; } }
 
 function renderCommentList(id){
-  const box = document.querySelector('[data-cm="' + id + '"]');
+  const box = cmBox(id);
   if (!box) return;
   box.replaceChildren();
   const list = cmCache[id];
-  if (!list) { box.append(h("p", {class:"note", text:"댓글 불러오는 중…"})); return; }
-  if (!list.length) { box.append(h("p", {class:"note", text:"첫 댓글을 남겨보세요."})); return; }
-  list.forEach(c => {
-    const row = h("div", {class:"cm"},
-      h("div", {class:"meta", text:c.author + " · " + fmt(c.createdAt)}),
-      h("div", {class:"body", style:"padding:2px 0 0", text:c.body}));
-    if (session && session.uid === c.authorId) row.append(h("button", {class:"del", text:"삭제", onclick(){ removeComment(id, c.id); }}));
-    box.append(row);
-  });
+  if (list) {
+    if (!list.length) box.append(h("p", {class:"note", text:"첫 댓글을 남겨보세요."}));
+    list.forEach(c => {
+      const row = h("div", {class:"cm"},
+        h("div", {class:"meta", text:c.author + " · " + fmt(c.createdAt)}),
+        h("div", {class:"body", style:"padding:2px 0 0", text:c.body}));
+      if (session && session.uid === c.authorId) row.append(h("button", {class:"del", text:"삭제", onclick(){ removeComment(id, c.id); }}));
+      box.append(row);
+    });
+  } else if (cmErr[id]) {
+    box.append(h("p", {class:"note", style:"margin:0", text:cmErr[id]}),
+      h("button", {class:"del", text:"다시 시도", onclick(){ unwatchComments(id); delete cmErr[id]; delete cmCache[id]; watchComments(id); renderCommentList(id); }}));
+  } else {
+    box.append(h("p", {class:"note", text:"댓글 불러오는 중…"}));
+  }
 }
 
 function commentForm(id){
@@ -324,24 +339,29 @@ function commentForm(id){
   const inp = h("input", {maxlength:"300", placeholder:"댓글을 입력하세요", "aria-label":"댓글"});
   inp.value = drafts[id] || "";
   inp.addEventListener("input", () => { drafts[id] = inp.value; });
-  return h("form", {class:"cm-form", onsubmit(ev){
-    ev.preventDefault();
-    const body = inp.value.trim();
-    if (!body) return;
-    addComment(id, body);
-    inp.value = ""; drafts[id] = "";
-  }}, inp, h("button", {type:"submit", class:"btn", text:"등록"}));
+  return h("div", {},
+    h("form", {class:"cm-form", async onsubmit(ev){
+      ev.preventDefault();
+      const body = inp.value.trim();
+      if (!body) return;
+      inp.disabled = true; cmMsg(id, "");
+      const ok = await addComment(id, body);
+      inp.disabled = false;
+      if (ok) { inp.value = ""; drafts[id] = ""; }
+    }}, inp, h("button", {type:"submit", class:"btn", text:"등록"})),
+    h("p", {class:"note", style:"color:var(--accent);margin:6px 0 0", "data-cmmsg":id}));
 }
 
 async function addComment(id, body){
-  if (!fb || !session) return;
+  if (!fb || !session) return false;
   const F = fb.F;
   try {
     const batch = F.writeBatch(fb.db);
     batch.set(F.doc(F.collection(fb.db, "posts", id, "comments")), {body, author:session.name, authorId:session.uid, createdAt:Date.now()});
     batch.update(F.doc(fb.db, "posts", id), {commentCount: F.increment(1)});
     await batch.commit();
-  } catch (e) { setNote(failMsg(e, "댓글을 올리지 못했습니다.")); }
+    return true;
+  } catch (e) { cmMsg(id, failMsg(e, "댓글을 올리지 못했습니다.")); return false; }
 }
 async function removeComment(id, cid){
   if (!fb) return;
@@ -351,7 +371,7 @@ async function removeComment(id, cid){
     batch.delete(F.doc(fb.db, "posts", id, "comments", cid));
     batch.update(F.doc(fb.db, "posts", id), {commentCount: F.increment(-1)});
     await batch.commit();
-  } catch (e) { setNote(failMsg(e, "댓글을 지우지 못했습니다.")); }
+  } catch (e) { cmMsg(id, failMsg(e, "댓글을 지우지 못했습니다.")); }
 }
 
 function renderPosts(){
