@@ -70,6 +70,10 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .cm:last-child{border-bottom:0}
 form.cm-form{display:flex;gap:8px;margin-top:10px}
 form.cm-form input{flex:1}
+.badge{display:inline-block;border:1px solid var(--accent);color:var(--accent);font-size:12px;padding:0 6px;margin-right:8px}
+.pimg{max-width:100%;height:auto;display:block;margin:0 0 14px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btnbg);color:var(--btnfg);padding:12px 18px;max-width:calc(100% - 32px);display:none;z-index:50;cursor:pointer}
+#toast.on{display:block}
 .joke{background:var(--panel);border-bottom:1px solid var(--rule);text-align:center;font-size:14px;color:var(--muted);padding:8px 16px}
 .live{color:var(--accent)}
 footer{margin-top:96px;border-top:1px solid var(--rule);padding:28px 0 40px;color:var(--muted);font-size:14px}
@@ -117,6 +121,16 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-betw
 
 <footer><div class="wrap"><div class="serif" data-name>짱수교</div><div>© <span data-name>짱수교</span> · 장난입니다. 진짜 아님!</div></div></footer>
 
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="noti" aria-labelledby="noti-h">
+<h3 id="noti-h" class="serif" style="margin:0 0 12px;font-size:22px">알림</h3>
+<div id="noti-list"></div>
+<div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap">
+<button type="button" class="btn line" id="noti-perm">브라우저 알림 켜기</button>
+<button type="button" class="btn line" id="noti-clear">모두 읽음</button>
+<button type="button" class="btn" id="noti-close">닫기</button>
+</div>
+</dialog>
 <dialog id="login" aria-labelledby="login-h">
 <form method="dialog" id="login-form">
 <h3 id="login-h" class="serif" style="margin:0 0 6px;font-size:22px">로그인 / 가입</h3>
@@ -147,6 +161,10 @@ const firebaseConfig = {
   appId: "1:100940757392:web:8ba26f602ae5802376db15"
 };
 /* ▲▲▲ */
+
+/* 관리자 아이디 목록: 이 아이디로 가입한 사람이 관리자(공지·고정·삭제)가 됩니다. 배포하자마자 본인이 먼저 가입하세요. */
+const ADMIN_IDS = ["admin"];
+const mkSession = (uid, name, email) => ({uid, name, isAdmin: ADMIN_IDS.includes(String(email || "").split("@")[0].toLowerCase())});
 
 /* Firebase는 페이지가 뜬 뒤에 따로 불러옵니다. 불러오기에 실패해도 경전·화면은 정상 표시됩니다. */
 const configured = !firebaseConfig.apiKey.startsWith("여기에");
@@ -209,7 +227,9 @@ const authErr = e => AUTH_MSG[e && e.code] || "처리하지 못했습니다. 잠
 function renderAuth(){
   const box = $("auth"); box.replaceChildren();
   if (session) {
-    box.append(h("span", {text: session.name + "님"}), h("button", {class:"btn line", text:"로그아웃", onclick(){ if (fb) fb.Au.signOut(fb.auth); }}));
+    box.append(h("span", {text: session.name + "님" + (session.isAdmin ? " (관리자)" : "")}),
+      h("button", {class:"btn line", text:"🔔" + (notis.length ? " " + notis.length : ""), "aria-label":"알림", onclick(){ openNoti(); }}),
+      h("button", {class:"btn line", text:"로그아웃", onclick(){ if (fb) fb.Au.signOut(fb.auth); }}));
   } else {
     box.append(h("button", {class:"btn line", text:"로그인", onclick(){ $("login").showModal(); $("nick").focus(); }}));
   }
@@ -232,7 +252,7 @@ $("signup-btn").addEventListener("click", async () => {
   try {
     await fb.Au.createUserWithEmailAndPassword(fb.auth, toEmail(id), pw);
     await fb.Au.updateProfile(fb.auth.currentUser, { displayName: nick });
-    session = { uid: fb.auth.currentUser.uid, name: nick };
+    session = mkSession(fb.auth.currentUser.uid, nick, toEmail(id)); watchNotis();
     renderAuth(); renderBoard(); resetLogin(); $("login").close();
   } catch (e) { $("login-err").textContent = authErr(e); }
 });
@@ -273,13 +293,26 @@ function renderWrite(){
   if (session && fb) {
     const t = h("input", {id:"p-title", maxlength:"80", required:"true"});
     const b = h("textarea", {id:"p-body", maxlength:"2000", required:"true"});
-    wa.append(h("form", {class:"write", onsubmit(ev){
+    const f = h("input", {type:"file", accept:"image/*", id:"p-img"});
+    const info = h("p", {class:"note", style:"margin:4px 0 0"});
+    const nt = h("input", {type:"checkbox", id:"p-notice", style:"width:auto"});
+    let imgData = null;
+    f.addEventListener("change", async () => {
+      imgData = null; info.textContent = "";
+      if (!f.files[0]) return;
+      info.textContent = "이미지 처리 중…";
+      try { imgData = await compressImage(f.files[0]); info.textContent = "첨부됨 (" + Math.round(imgData.length / 1024) + "KB)"; }
+      catch (e) { info.textContent = e.message || "이미지를 처리하지 못했습니다."; f.value = ""; }
+    });
+    wa.append(h("form", {class:"write", async onsubmit(ev){
       ev.preventDefault();
-      addPost({title:t.value.trim(), body:b.value.trim(), author:session.name, authorId:session.uid, createdAt:Date.now()});
-      t.value = ""; b.value = "";
+      const ok = await addPost({title:t.value.trim(), body:b.value.trim(), author:session.name, authorId:session.uid, createdAt:Date.now(), notice:nt.checked, pinned:nt.checked}, imgData);
+      if (ok) { t.value = ""; b.value = ""; f.value = ""; nt.checked = false; imgData = null; info.textContent = ""; }
     }},
       h("div", {}, h("label", {for:"p-title", text:"제목"}), t),
       h("div", {}, h("label", {for:"p-body", text:"내용"}), b),
+      h("div", {}, h("label", {for:"p-img", text:"이미지 (선택, 1장)"}), f, info),
+      session.isAdmin ? h("label", {style:"display:flex;gap:8px;align-items:center"}, nt, "공지로 올리기 (상단 고정)") : "",
       h("div", {}, h("button", {type:"submit", class:"btn", text:"글 올리기"}))));
   } else {
     wa.append(h("p", {class:"note", style:"margin:20px 0", text:"글쓰기는 로그인 후에 할 수 있습니다."}));
@@ -323,7 +356,7 @@ function renderCommentList(id){
       const row = h("div", {class:"cm"},
         h("div", {class:"meta", text:c.author + " · " + fmt(c.createdAt)}),
         h("div", {class:"body", style:"padding:2px 0 0", text:c.body}));
-      if (session && session.uid === c.authorId) row.append(h("button", {class:"del", text:"삭제", onclick(){ removeComment(id, c.id); }}));
+      if (session && (session.uid === c.authorId || session.isAdmin)) row.append(h("button", {class:"del", text:"삭제", onclick(){ removeComment(id, c.id); }}));
       box.append(row);
     });
   } else if (cmErr[id]) {
@@ -359,6 +392,8 @@ async function addComment(id, body){
     const batch = F.writeBatch(fb.db);
     batch.set(F.doc(F.collection(fb.db, "posts", id, "comments")), {body, author:session.name, authorId:session.uid, createdAt:Date.now()});
     batch.update(F.doc(fb.db, "posts", id), {commentCount: F.increment(1)});
+    const post = posts.find(p => p.id === id);
+    if (post && post.authorId && post.authorId !== session.uid) batch.set(F.doc(F.collection(fb.db, "notifications")), {toUid:post.authorId, postId:id, postTitle:post.title, from:session.name, text:body.slice(0, 60), createdAt:Date.now()});
     await batch.commit();
     return true;
   } catch (e) { cmMsg(id, failMsg(e, "댓글을 올리지 못했습니다.")); return false; }
@@ -379,27 +414,35 @@ function renderPosts(){
   if (!posts.length) { list.append(h("p", {class:"note", text:"아직 올라온 글이 없습니다."})); return; }
   posts.forEach(p => {
     const n = Math.max(0, p.commentCount || 0);
+    const badge = p.notice ? h("span", {class:"badge", text:"공지"}) : p.pinned ? h("span", {class:"badge", text:"📌 고정"}) : "";
     const d = h("details", {},
-      h("summary", {}, h("span", {class:"pt", text:p.title}), h("span", {class:"meta", text:p.author + " · " + fmt(p.createdAt) + (n ? " · 댓글 " + n : "")})),
+      h("summary", {}, h("span", {class:"pt"}, badge, p.title), h("span", {class:"meta", text:p.author + " · " + fmt(p.createdAt) + (n ? " · 댓글 " + n : "")})),
       h("p", {class:"body", text:p.body}),
+      p.hasImage ? h("div", {"data-img":p.id}) : "",
       h("div", {class:"comments"}, h("h4", {text:"댓글"}), h("div", {"data-cm":p.id}), commentForm(p.id)));
+    const onOpen = () => { watchComments(p.id); renderCommentList(p.id); if (p.hasImage) loadImage(p.id); };
     d.open = openIds.has(p.id);
-    d.addEventListener("toggle", () => {
-      if (d.open) { openIds.add(p.id); watchComments(p.id); renderCommentList(p.id); }
-      else { openIds.delete(p.id); unwatchComments(p.id); }
-    });
-    if (session && session.uid === p.authorId) d.append(h("button", {class:"del", text:"글 삭제", onclick(){ removePost(p.id); }}));
+    d.addEventListener("toggle", () => { if (d.open) { openIds.add(p.id); onOpen(); } else { openIds.delete(p.id); unwatchComments(p.id); } });
+    if (session && session.isAdmin) d.append(h("button", {class:"del", style:"margin-right:14px", text:p.pinned ? "고정 해제" : "📌 고정", onclick(){ togglePin(p); }}));
+    if (session && (session.uid === p.authorId || session.isAdmin)) d.append(h("button", {class:"del", text:"글 삭제", onclick(){ removePost(p.id); }}));
     list.append(d);
-    if (d.open) { watchComments(p.id); renderCommentList(p.id); }
+    if (d.open) onOpen();
   });
 }
 
 function renderBoard(){ updateNote(); renderWrite(); renderPosts(); }
 
-async function addPost(data){
-  if (!fb || !data.title || !data.body) return;
-  try { await fb.F.addDoc(fb.F.collection(fb.db, "posts"), data); }
-  catch (e) { setNote(e && e.code === "permission-denied" ? "권한이 없습니다. Firestore 규칙을 확인해 주세요." : "글을 올리지 못했습니다. 잠시 후 다시 시도해 주세요."); }
+async function addPost(data, img){
+  if (!fb || !data.title || !data.body) return false;
+  const F = fb.F;
+  try {
+    const ref = F.doc(F.collection(fb.db, "posts"));
+    const batch = F.writeBatch(fb.db);
+    if (img) { data.hasImage = true; imgCache[ref.id] = img; batch.set(F.doc(fb.db, "postImages", ref.id), {data:img, authorId:data.authorId}); }
+    batch.set(ref, data);
+    await batch.commit();
+    return true;
+  } catch (e) { setNote(failMsg(e, "글을 올리지 못했습니다.")); return false; }
 }
 async function removePost(id){
   if (!fb) return;
@@ -409,9 +452,105 @@ async function removePost(id){
     const batch = F.writeBatch(fb.db);
     snap.docs.forEach(c => batch.delete(c.ref));
     batch.delete(F.doc(fb.db, "posts", id));
+    batch.delete(F.doc(fb.db, "postImages", id));
     await batch.commit();
     unwatchComments(id); delete cmCache[id]; delete drafts[id]; openIds.delete(id);
   } catch (e) { setNote(failMsg(e, "삭제하지 못했습니다.")); }
+}
+
+/* ---------- 알림 · 이미지 · 관리자 ---------- */
+let notis = [], notiUnsub = null, notiSeen = false, toastTimer = null;
+let recent = [], pinnedList = [], postsSeen = false;
+const imgCache = {};
+
+function toast(msg, onclick){
+  const t = $("toast"); t.textContent = msg;
+  t.onclick = () => { t.classList.remove("on"); if (onclick) onclick(); };
+  t.classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 6000);
+}
+function alertUser(title, body, onclick){
+  toast(title + (body ? " — " + body : ""), onclick);
+  if (document.hidden && "Notification" in window && Notification.permission === "granted") { try { new Notification(title, {body}); } catch (e) {} }
+}
+function goPost(id){
+  openIds.add(id); renderPosts();
+  const el = document.querySelector('[data-cm="' + id + '"]');
+  const d = el && el.closest("details");
+  if (d && d.scrollIntoView) d.scrollIntoView({behavior:"smooth", block:"center"});
+}
+
+function watchNotis(){
+  if (notiUnsub) { notiUnsub(); notiUnsub = null; }
+  notis = []; notiSeen = false;
+  if (!fb || !session) { renderAuth(); return; }
+  const F = fb.F;
+  notiUnsub = F.onSnapshot(F.query(F.collection(fb.db, "notifications"), F.where("toUid", "==", session.uid)), snap => {
+    if (!snap.metadata.fromCache) {
+      if (notiSeen) snap.docChanges().forEach(ch => {
+        if (ch.type === "added" && !ch.doc.metadata.hasPendingWrites) { const n = ch.doc.data(); alertUser("💬 내 글에 새 댓글", n.from + ": " + n.text, () => goPost(n.postId)); }
+      });
+      notiSeen = true;
+    }
+    notis = snap.docs.map(d => ({id:d.id, ...d.data()})).sort((a, b) => b.createdAt - a.createdAt);
+    renderAuth(); renderNotiList();
+  }, () => {});
+}
+function renderNotiList(){
+  const box = $("noti-list"); box.replaceChildren();
+  if (!notis.length) { box.append(h("p", {class:"note", text:"새 알림이 없습니다."})); return; }
+  notis.slice(0, 30).forEach(n => box.append(h("div", {class:"cm"},
+    h("div", {class:"meta", text:n.from + " · " + fmt(n.createdAt)}),
+    h("div", {text:"「" + n.postTitle + "」에 댓글: " + n.text}),
+    h("button", {class:"del", text:"글 보기", onclick(){ readNoti(n); }}))));
+}
+function openNoti(){
+  renderNotiList();
+  $("noti-perm").hidden = !("Notification" in window) || Notification.permission === "granted";
+  $("noti").showModal();
+}
+const delNoti = n => fb.F.deleteDoc(fb.F.doc(fb.db, "notifications", n.id)).catch(() => {});
+async function readNoti(n){ await delNoti(n); $("noti").close(); goPost(n.postId); }
+$("noti-close").addEventListener("click", () => $("noti").close());
+$("noti-clear").addEventListener("click", () => { if (fb) notis.forEach(delNoti); });
+$("noti-perm").addEventListener("click", () => { if ("Notification" in window) Notification.requestPermission().then(() => { $("noti-perm").hidden = Notification.permission === "granted"; }); });
+
+async function compressImage(file){
+  if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 올릴 수 있어요.");
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("이미지를 읽지 못했습니다.")); i.src = url; });
+    for (const [max, q] of [[1024, .75], [800, .6], [600, .5]]) {
+      const r = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      const out = c.toDataURL("image/jpeg", q);
+      if (out.length < 600000) return out;
+    }
+    throw new Error("이미지가 너무 커요. 더 작은 사진을 써주세요.");
+  } finally { URL.revokeObjectURL(url); }
+}
+const imgBox = id => document.querySelector('[data-img="' + id + '"]');
+function showImg(id, src){ const b = imgBox(id); if (b) b.replaceChildren(h("img", {src, alt:"첨부 이미지", class:"pimg"})); }
+async function loadImage(id){
+  if (imgCache[id]) { showImg(id, imgCache[id]); return; }
+  const b = imgBox(id); if (b) b.textContent = "이미지 불러오는 중…";
+  try {
+    const snap = await fb.F.getDoc(fb.F.doc(fb.db, "postImages", id));
+    if (snap.exists()) { imgCache[id] = snap.data().data; showImg(id, imgCache[id]); }
+    else if (imgBox(id)) imgBox(id).textContent = "이미지를 찾을 수 없습니다.";
+  } catch (e) { if (imgBox(id)) imgBox(id).textContent = "이미지를 불러오지 못했습니다."; }
+}
+
+async function togglePin(p){
+  try { await fb.F.updateDoc(fb.F.doc(fb.db, "posts", p.id), p.pinned ? {pinned:false, notice:false} : {pinned:true}); }
+  catch (e) { setNote(failMsg(e, "고정을 바꾸지 못했습니다.")); }
+}
+function mergePosts(){
+  const m = new Map(); recent.concat(pinnedList).forEach(p => m.set(p.id, p));
+  const rank = p => p.notice ? 2 : p.pinned ? 1 : 0;
+  posts = [...m.values()].sort((a, b) => (rank(b) - rank(a)) || (b.createdAt - a.createdAt));
+  Object.keys(cmUnsub).forEach(id => { if (!m.has(id)) { unwatchComments(id); delete cmCache[id]; } });
+  updateNote(); renderPosts();
 }
 
 /* 화면은 먼저 그리고, Firebase는 그다음에 연결합니다 */
@@ -426,17 +565,28 @@ async function initFirebase(){
     fb = { auth: Au.getAuth(app), db: F.getFirestore(app), Au, F };
     fbState = "ready";
     Au.onAuthStateChanged(fb.auth, user => {
-      session = user ? { uid: user.uid, name: user.displayName || user.email.split("@")[0] } : null;
-      renderAuth(); renderBoard();
+      session = user ? mkSession(user.uid, user.displayName || user.email.split("@")[0], user.email) : null;
+      watchNotis(); renderAuth(); renderBoard();
     });
     const timer = setTimeout(() => { if (!live) setNote("연결이 늦어지고 있어요…"); }, 10000);
     F.onSnapshot(F.query(F.collection(fb.db, "posts"), F.orderBy("createdAt", "desc"), F.limit(100)), snap => {
       live = !snap.metadata.fromCache;
-      if (live) clearTimeout(timer);
-      posts = snap.docs.map(d => ({id:d.id, ...d.data()}));
-      Object.keys(cmUnsub).forEach(id => { if (!posts.some(p => p.id === id)) { unwatchComments(id); delete cmCache[id]; } });
-      updateNote(); renderPosts();
+      if (live) {
+        clearTimeout(timer);
+        if (postsSeen) snap.docChanges().forEach(ch => {
+          const d = ch.doc.data();
+          if (ch.type === "added" && !ch.doc.metadata.hasPendingWrites && !(session && d.authorId === session.uid))
+            alertUser(d.notice ? "📢 새 공지" : "새 글", d.title + " · " + d.author, () => goPost(ch.doc.id));
+        });
+        postsSeen = true;
+      }
+      recent = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      mergePosts();
     }, () => { clearTimeout(timer); setNote("게시판을 불러오지 못했습니다."); });
+    F.onSnapshot(F.query(F.collection(fb.db, "posts"), F.where("pinned", "==", true)), snap => {
+      pinnedList = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      mergePosts();
+    }, () => {});
   } catch (e) {
     fbState = "failed"; fb = null; renderBoard();
   }
