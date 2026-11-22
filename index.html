@@ -121,12 +121,19 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-betw
 
 <footer><div class="wrap"><div class="serif" data-name>짱수교</div><div>© <span data-name>짱수교</span> · 장난입니다. 진짜 아님!</div></div></footer>
 
+<dialog id="adm" aria-labelledby="adm-h">
+<h3 id="adm-h" class="serif" style="margin:0 0 6px;font-size:22px">관리자 관리</h3>
+<p class="note" style="margin:0 0 14px">임명할 사람의 아이디를 적으세요. 그 아이디로 로그인하면 관리자 권한이 적용됩니다.</p>
+<div style="display:flex;gap:8px"><input id="adm-id" maxlength="20" placeholder="아이디" aria-label="임명할 아이디"><button type="button" class="btn" id="adm-add">임명</button></div>
+<p id="adm-msg" class="note" role="alert" style="color:var(--accent);margin:8px 0 0;min-height:1.7em"></p>
+<div id="adm-list"></div>
+<div style="display:flex;justify-content:flex-end;margin-top:18px"><button type="button" class="btn" id="adm-close">닫기</button></div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <dialog id="noti" aria-labelledby="noti-h">
 <h3 id="noti-h" class="serif" style="margin:0 0 12px;font-size:22px">알림</h3>
 <div id="noti-list"></div>
 <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap">
-<button type="button" class="btn line" id="noti-perm">브라우저 알림 켜기</button>
 <button type="button" class="btn line" id="noti-clear">모두 읽음</button>
 <button type="button" class="btn" id="noti-close">닫기</button>
 </div>
@@ -162,9 +169,9 @@ const firebaseConfig = {
 };
 /* ▲▲▲ */
 
-/* 관리자 아이디 목록: 이 아이디로 가입한 사람이 관리자(공지·고정·삭제)가 됩니다. 배포하자마자 본인이 먼저 가입하세요. */
-const ADMIN_IDS = ["admin"];
-const mkSession = (uid, name, email) => ({uid, name, isAdmin: ADMIN_IDS.includes(String(email || "").split("@")[0].toLowerCase())});
+/* 소유자 아이디: 이 아이디로 가입한 사람이 관리자를 임명/박탈할 수 있습니다. 배포하자마자 본인이 먼저 가입하세요. */
+const OWNER_ID = "admin1seominkyu";
+const mkSession = (uid, name, email) => ({uid, name, id: String(email || "").split("@")[0].toLowerCase()});
 
 /* Firebase는 페이지가 뜬 뒤에 따로 불러옵니다. 불러오기에 실패해도 경전·화면은 정상 표시됩니다. */
 const configured = !firebaseConfig.apiKey.startsWith("여기에");
@@ -227,7 +234,8 @@ const authErr = e => AUTH_MSG[e && e.code] || "처리하지 못했습니다. 잠
 function renderAuth(){
   const box = $("auth"); box.replaceChildren();
   if (session) {
-    box.append(h("span", {text: session.name + "님" + (session.isAdmin ? " (관리자)" : "")}),
+    box.append(h("span", {text: session.name + "님" + (isOwner() ? " (소유자)" : isAdmin() ? " (관리자)" : "")}),
+      isOwner() ? h("button", {class:"btn line", text:"👑 관리자 관리", onclick(){ openAdm(); }}) : "",
       h("button", {class:"btn line", text:"🔔" + (notis.length ? " " + notis.length : ""), "aria-label":"알림", onclick(){ openNoti(); }}),
       h("button", {class:"btn line", text:"로그아웃", onclick(){ if (fb) fb.Au.signOut(fb.auth); }}));
   } else {
@@ -312,7 +320,7 @@ function renderWrite(){
       h("div", {}, h("label", {for:"p-title", text:"제목"}), t),
       h("div", {}, h("label", {for:"p-body", text:"내용"}), b),
       h("div", {}, h("label", {for:"p-img", text:"이미지 (선택, 1장)"}), f, info),
-      session.isAdmin ? h("label", {style:"display:flex;gap:8px;align-items:center"}, nt, "공지로 올리기 (상단 고정)") : "",
+      isAdmin() ? h("label", {style:"display:flex;gap:8px;align-items:center"}, nt, "공지로 올리기 (상단 고정)") : "",
       h("div", {}, h("button", {type:"submit", class:"btn", text:"글 올리기"}))));
   } else {
     wa.append(h("p", {class:"note", style:"margin:20px 0", text:"글쓰기는 로그인 후에 할 수 있습니다."}));
@@ -356,7 +364,7 @@ function renderCommentList(id){
       const row = h("div", {class:"cm"},
         h("div", {class:"meta", text:c.author + " · " + fmt(c.createdAt)}),
         h("div", {class:"body", style:"padding:2px 0 0", text:c.body}));
-      if (session && (session.uid === c.authorId || session.isAdmin)) row.append(h("button", {class:"del", text:"삭제", onclick(){ removeComment(id, c.id); }}));
+      if (session && (session.uid === c.authorId || isAdmin())) row.append(h("button", {class:"del", text:"삭제", onclick(){ removeComment(id, c.id); }}));
       box.append(row);
     });
   } else if (cmErr[id]) {
@@ -423,8 +431,8 @@ function renderPosts(){
     const onOpen = () => { watchComments(p.id); renderCommentList(p.id); if (p.hasImage) loadImage(p.id); };
     d.open = openIds.has(p.id);
     d.addEventListener("toggle", () => { if (d.open) { openIds.add(p.id); onOpen(); } else { openIds.delete(p.id); unwatchComments(p.id); } });
-    if (session && session.isAdmin) d.append(h("button", {class:"del", style:"margin-right:14px", text:p.pinned ? "고정 해제" : "📌 고정", onclick(){ togglePin(p); }}));
-    if (session && (session.uid === p.authorId || session.isAdmin)) d.append(h("button", {class:"del", text:"글 삭제", onclick(){ removePost(p.id); }}));
+    if (session && isAdmin()) d.append(h("button", {class:"del", style:"margin-right:14px", text:p.pinned ? "고정 해제" : "📌 고정", onclick(){ togglePin(p); }}));
+    if (session && (session.uid === p.authorId || isAdmin())) d.append(h("button", {class:"del", text:"글 삭제", onclick(){ removePost(p.id); }}));
     list.append(d);
     if (d.open) onOpen();
   });
@@ -505,14 +513,12 @@ function renderNotiList(){
 }
 function openNoti(){
   renderNotiList();
-  $("noti-perm").hidden = !("Notification" in window) || Notification.permission === "granted";
   $("noti").showModal();
 }
 const delNoti = n => fb.F.deleteDoc(fb.F.doc(fb.db, "notifications", n.id)).catch(() => {});
 async function readNoti(n){ await delNoti(n); $("noti").close(); goPost(n.postId); }
 $("noti-close").addEventListener("click", () => $("noti").close());
 $("noti-clear").addEventListener("click", () => { if (fb) notis.forEach(delNoti); });
-$("noti-perm").addEventListener("click", () => { if ("Notification" in window) Notification.requestPermission().then(() => { $("noti-perm").hidden = Notification.permission === "granted"; }); });
 
 async function compressImage(file){
   if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 올릴 수 있어요.");
@@ -553,8 +559,44 @@ function mergePosts(){
   updateNote(); renderPosts();
 }
 
+/* ---------- 관리자 (Firestore admins/{아이디}) ---------- */
+let adminIds = new Set();
+function isOwner(){ return !!session && session.id === OWNER_ID; }
+function isAdmin(){ return !!session && (session.id === OWNER_ID || adminIds.has(session.id)); }
+function renderAdminList(){
+  const box = $("adm-list"); box.replaceChildren();
+  box.append(h("div", {class:"cm"}, h("span", {text:OWNER_ID + " (소유자)"})));
+  [...adminIds].filter(id => id !== OWNER_ID).sort().forEach(id => box.append(h("div", {class:"cm", style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},
+    h("span", {text:id}), h("button", {class:"del", text:"박탈", onclick(){ revokeAdmin(id); }}))));
+}
+function openAdm(){ $("adm-msg").textContent = ""; renderAdminList(); $("adm").showModal(); }
+async function appointAdmin(){
+  if (!fb || !isOwner()) return;
+  const id = $("adm-id").value.trim().toLowerCase(), msg = $("adm-msg");
+  if (!ID_RE.test(id)) { msg.textContent = "아이디는 영문 소문자·숫자 3~20자입니다."; return; }
+  if (id === OWNER_ID || adminIds.has(id)) { msg.textContent = "이미 관리자입니다."; return; }
+  try { await fb.F.setDoc(fb.F.doc(fb.db, "admins", id), {by:session.id, createdAt:Date.now()}); $("adm-id").value = ""; msg.textContent = id + " 님을 관리자로 임명했습니다."; }
+  catch (e) { msg.textContent = failMsg(e, "임명하지 못했습니다."); }
+}
+async function revokeAdmin(id){
+  if (!fb || !isOwner() || id === OWNER_ID) return;
+  try { await fb.F.deleteDoc(fb.F.doc(fb.db, "admins", id)); $("adm-msg").textContent = id + " 님의 관리자 권한을 박탈했습니다."; }
+  catch (e) { $("adm-msg").textContent = failMsg(e, "박탈하지 못했습니다."); }
+}
+$("adm-add").addEventListener("click", appointAdmin);
+$("adm-id").addEventListener("keydown", ev => { if (ev.key === "Enter") appointAdmin(); });
+$("adm-close").addEventListener("click", () => $("adm").close());
+
+/* 접속하자마자 브라우저 알림 권한 요청 (일부 브라우저는 클릭 같은 사용자 동작이 있어야 허용해서, 첫 동작 때 한 번 더 요청) */
+function askNotifyPermission(){
+  if (!("Notification" in window) || Notification.permission !== "default") return;
+  try { const r = Notification.requestPermission(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+}
+
 /* 화면은 먼저 그리고, Firebase는 그다음에 연결합니다 */
 renderAuth(); renderChapter(); renderBoard();
+askNotifyPermission();
+["click", "keydown", "touchstart"].forEach(ev => window.addEventListener(ev, askNotifyPermission, {once:true}));
 
 async function initFirebase(){
   if (!configured) return;
@@ -564,6 +606,12 @@ async function initFirebase(){
     const app = A.initializeApp(firebaseConfig);
     fb = { auth: Au.getAuth(app), db: F.getFirestore(app), Au, F };
     fbState = "ready";
+    F.onSnapshot(F.collection(fb.db, "admins"), snap => {
+      const before = isAdmin();
+      adminIds = new Set(snap.docs.map(d => d.id));
+      renderAuth(); renderAdminList();
+      if (isAdmin() !== before) renderBoard();
+    }, () => {});
     Au.onAuthStateChanged(fb.auth, user => {
       session = user ? mkSession(user.uid, user.displayName || user.email.split("@")[0], user.email) : null;
       watchNotis(); renderAuth(); renderBoard();
