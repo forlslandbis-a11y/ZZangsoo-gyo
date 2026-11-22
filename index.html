@@ -131,6 +131,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-betw
 </dialog>
 
 <script type="module">
+/* ▼▼▼ 여기에 Firebase 콘솔의 firebaseConfig 값을 붙여넣으세요 ▼▼▼ */
 const firebaseConfig = {
   apiKey: "AIzaSyCKxEkvWWCjmlIwoukcpRmJ00fqlC1dDLw",
   authDomain: "zzangsoo-gyo.firebaseapp.com",
@@ -142,7 +143,7 @@ const firebaseConfig = {
 /* ▲▲▲ */
 
 /* Firebase는 페이지가 뜬 뒤에 따로 불러옵니다. 불러오기에 실패해도 경전·화면은 정상 표시됩니다. */
-const configured = !FIREBASE_CONFIG.apiKey.startsWith("여기에");
+const configured = !firebaseConfig.apiKey.startsWith("여기에");
 let fb = null;                                   // 불러오기에 성공하면 채워짐
 let fbState = configured ? "loading" : "nocfg";  // loading | ready | failed | nocfg
 const fbMsg = () => configured ? "Firebase를 불러오는 중이거나 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." : "Firebase 설정(firebaseConfig)이 아직 비어 있습니다.";
@@ -194,7 +195,8 @@ const AUTH_MSG = {
   "auth/weak-password": "비밀번호는 6자 이상이어야 합니다.",
   "auth/invalid-credential": "아이디 또는 비밀번호가 맞지 않습니다.",
   "auth/too-many-requests": "시도가 너무 많습니다. 잠시 후 다시 해주세요.",
-  "auth/network-request-failed": "네트워크 연결을 확인해 주세요."
+  "auth/network-request-failed": "네트워크 연결을 확인해 주세요.",
+  "auth/operation-not-allowed": "Firebase 콘솔에서 이메일/비밀번호 로그인이 아직 켜져 있지 않습니다."
 };
 const authErr = e => AUTH_MSG[e && e.code] || "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 
@@ -297,7 +299,7 @@ function renderBoard(){ updateNote(); renderWrite(); renderPosts(); }
 async function addPost(data){
   if (!fb || !data.title || !data.body) return;
   try { await fb.F.addDoc(fb.F.collection(fb.db, "posts"), data); }
-  catch (e) { setNote("글을 올리지 못했습니다. 잠시 후 다시 시도해 주세요."); }
+  catch (e) { setNote(e && e.code === "permission-denied" ? "권한이 없습니다. Firestore 규칙을 확인해 주세요." : "글을 올리지 못했습니다. 잠시 후 다시 시도해 주세요."); }
 }
 async function removePost(id){
   if (!fb) return;
@@ -313,7 +315,7 @@ async function initFirebase(){
   try {
     const V = "https://www.gstatic.com/firebasejs/10.12.2/";
     const [A, Au, F] = await Promise.all([import(V + "firebase-app.js"), import(V + "firebase-auth.js"), import(V + "firebase-firestore.js")]);
-    const app = A.initializeApp(FIREBASE_CONFIG);
+    const app = A.initializeApp(firebaseConfig);
     fb = { auth: Au.getAuth(app), db: F.getFirestore(app), Au, F };
     fbState = "ready";
     Au.onAuthStateChanged(fb.auth, user => {
