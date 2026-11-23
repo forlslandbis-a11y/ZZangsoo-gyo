@@ -136,7 +136,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-betw
 <p class="lead" style="margin:12px 0 0">박자에 맞춰 짱수께 빵, 딸기, 우유, 딸기우유를 바치세요. (소리가 나요)</p>
 <canvas id="game" width="400" height="560" aria-label="리듬게임 화면"></canvas>
 <div class="gbar"><select id="game-level" aria-label="난이도" style="width:auto">
-<option>EASY</option><option>MILD</option><option selected>MIDDLE</option><option>HARD</option><option>SEVERE</option></select>
+<option>EASY</option><option>MILD</option><option selected>MIDDLE</option><option>HARD</option><option>SEVERE</option><option>VERY SEVERE</option></select>
 <button class="btn" id="game-start">게임 시작</button>
 <button class="btn line" id="game-stop" disabled>중단</button><span id="game-result" class="note"></span></div>
 <h3 class="serif" id="rank-title" style="margin:28px 0 6px">랭킹 TOP 10</h3>
@@ -220,7 +220,7 @@ const CHAPTERS = [
 ["2-1조","이수는 짱수다를 외치어 봉인을 풀라."],
 ["2-2조","모든 종교는 결국 짱수로 귀결된다. 그러니, 다른 종교를 가진 이를 미워하지 말라."],
 ["2-3조","짱수께서 진화시킨 모든 인간의 뿌리는 같으니 다른 이를 차별하지 말라."],
-["2-4조","성스러운 날에는 딸기나 우유, 혹은 딸기우유나 빵을 먹어라."],
+["2-4조","성스러운 날에는 딸기나 우유, 혹은 딸기우유를 먹어라."],
 ["2-5조","‘이다솜은 모던이다’를 외치는 것도 매우 큰 도움이 된다."]]},
 {t:"제3장 축일과 위계", v:[
 ["3-1조","짱수교의 축일은 교시일 11월 16일, 짱수 탄신일, 경전탄생일 11월 23일, 기독자비일 12월 25일, 이슬람자비일 4월 22일, 불교자비일(부처님오신날)로 나뉜다."],
@@ -677,7 +677,8 @@ const LEVELS = {
   MILD:   {bpm:100, step:1, off:0,   chord:0,  fall:2.0, perf:.08,  good:.18},
   MIDDLE: {bpm:110, step:1, off:0.2, chord:16, fall:1.8, perf:.07,  good:.16},
   HARD:   {bpm:120, step:1, off:0.4, chord:8,  fall:1.6, perf:.06,  good:.15},
-  SEVERE: {bpm:140, step:1, off:0.7, chord:4,  fall:1.2, perf:.045, good:.12}
+  SEVERE: {bpm:140, step:1, off:0.7, chord:4,  fall:1.2, perf:.045, good:.12},
+  "VERY SEVERE": {bpm:180, step:1, off:0.95, chord:2, fall:1.0, perf:.035, good:.10, end:184}
 };
 let LVN = "MIDDLE", LV = LEVELS[LVN];
 const LANES = [{k:"KeyD", e:"🍞", n:"빵", f:523.25}, {k:"KeyF", e:"🍓", n:"딸기", f:587.33}, {k:"KeyJ", e:"🥛", n:"우유", f:659.25}, {k:"KeyK", e:"🧃", n:"딸기우유", f:783.99}];
@@ -688,7 +689,7 @@ function makeChart(){
   const S = 60 / LV.bpm;
   let seed = 20261123; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const notes = []; let last = -1;
-  for (let b = 4; b < 124; b += LV.step) {
+  for (let b = 4; b < (LV.end || 124); b += LV.step) {
     let lane = Math.floor(rnd() * 4); if (lane === last) lane = (lane + 1 + Math.floor(rnd() * 3)) % 4; last = lane;
     notes.push({t:b * S, lane});
     if (LV.chord && b % LV.chord === LV.chord - 1) notes.push({t:b * S, lane:(lane + 2) % 4});
@@ -833,7 +834,7 @@ function initGame(){
   });
   cv.addEventListener("pointerdown", ev => { const r = cv.getBoundingClientRect(); press(Math.min(3, Math.max(0, Math.floor((ev.clientX - r.left) / r.width * 4)))); });
   $("game-level").addEventListener("change", () => {
-    LVN = $("game-level").value; LV = LEVELS[LVN]; $("game-result").textContent = "";
+    LVN = $("game-level").value; LV = LEVELS[LVN]; $("game-result").textContent = LVN === "VERY SEVERE" ? "⚠ 사람이 할 게 아닙니다. 책임 안 짐." : "";
     gameReset(); draw(-1); watchRank();
   });
   gameReset(); draw(-1); watchRank();
