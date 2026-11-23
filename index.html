@@ -53,7 +53,7 @@ h2{font-family:'Noto Serif KR',serif;font-size:34px;font-weight:700;margin:0 0 8
 .note{font-size:14px;color:var(--muted)}
 form.write{display:grid;gap:12px;margin:24px 0;padding:20px;background:var(--panel);border:1px solid var(--rule)}
 label{font-size:14px;font-weight:500;display:block;margin-bottom:4px}
-input,textarea{width:100%;padding:10px 12px;border:1px solid var(--muted);background:var(--bg);border-radius:0}
+input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--muted);background:var(--bg);border-radius:0}
 textarea{min-height:110px;resize:vertical}
 details{border-bottom:1px solid var(--rule)}
 summary{list-style:none;cursor:pointer;padding:16px 0;display:flex;flex-wrap:wrap;gap:4px 20px;justify-content:space-between;min-height:44px}
@@ -74,6 +74,10 @@ form.cm-form input{flex:1}
 .pimg{max-width:100%;height:auto;display:block;margin:0 0 14px}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btnbg);color:var(--btnfg);padding:12px 18px;max-width:calc(100% - 32px);display:none;z-index:50;cursor:pointer}
 #toast.on{display:block}
+.dlist{max-height:380px;overflow:auto;border-top:1px solid var(--rule);margin:14px 0}
+.vq{border-left:3px solid var(--accent);padding:6px 14px;margin:14px 0;color:var(--muted);font-family:'Noto Serif KR',serif}
+#game{display:block;width:100%;max-width:400px;height:auto;margin:14px auto;border:1px solid var(--rule);touch-action:none;user-select:none}
+.gbar{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;align-items:center}
 .joke{background:var(--panel);border-bottom:1px solid var(--rule);text-align:center;font-size:14px;color:var(--muted);padding:8px 16px}
 .live{color:var(--accent)}
 footer{margin-top:96px;border-top:1px solid var(--rule);padding:28px 0 40px;color:var(--muted);font-size:14px}
@@ -85,7 +89,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-betw
 <header>
 <div class="wrap">
 <a class="brand" href="#top" data-name>짱수교</a>
-<nav aria-label="주 메뉴"><a href="#scripture">경전 읽기</a><a href="#board">자유게시판</a></nav>
+<nav aria-label="주 메뉴"><a href="#scripture">경전 읽기</a><a href="#board">자유게시판</a><a href="#debate">경전 토론방</a><a href="#rhythm">리듬게임</a></nav>
 <div id="auth"></div>
 </div>
 </header>
@@ -116,6 +120,27 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-betw
 <div class="board-head"><h2 style="margin:0">자유게시판</h2><span class="note" id="board-note"></span></div>
 <div id="write-area"></div>
 <div id="posts"></div>
+</div></section>
+<section id="debate"><div class="wrap">
+<div class="board-head"><h2 style="margin:0">경전 토론방</h2><span class="note" id="debate-note"></span></div>
+<p class="lead" style="margin:12px 0 16px">조항을 골라 그 구절에 대해 이야기를 나눠보세요.</p>
+<label for="debate-key">조항</label>
+<select id="debate-key"></select>
+<blockquote class="vq" id="debate-verse"></blockquote>
+<div class="dlist" id="debate-list"></div>
+<div id="debate-form"></div>
+</div></section>
+
+<section id="rhythm"><div class="wrap">
+<div class="board-head"><h2 style="margin:0">제사 리듬게임</h2><span class="note">D · F · J · K 키 또는 화면 터치 · ESC로 중단</span></div>
+<p class="lead" style="margin:12px 0 0">박자에 맞춰 짱수께 빵, 딸기, 우유, 딸기우유를 바치세요. (소리가 나요)</p>
+<canvas id="game" width="400" height="560" aria-label="리듬게임 화면"></canvas>
+<div class="gbar"><select id="game-level" aria-label="난이도" style="width:auto">
+<option>EASY</option><option>MILD</option><option selected>MIDDLE</option><option>HARD</option><option>SEVERE</option></select>
+<button class="btn" id="game-start">게임 시작</button>
+<button class="btn line" id="game-stop" disabled>중단</button><span id="game-result" class="note"></span></div>
+<h3 class="serif" id="rank-title" style="margin:28px 0 6px">랭킹 TOP 10</h3>
+<ol id="rank" class="note" style="margin:0;padding-left:22px"></ol>
 </div></section>
 </main>
 
@@ -184,12 +209,13 @@ const ORDER_NAME = "짱수교";
 
 const CHAPTERS = [
 {t:"제1장 짱수는 무엇인가", v:[
-["1-1조","짱수는 날아다니는 스파게티 괴물이 미완성된 우주를 창조한 상태에서, 땅과 우주(딸기와 우유라는 해석도 존재한다.)의 기운이 모여 만들어졌다."],
-["1-2조","짱수는 우주에 과도하게 많은 음식을 치우고 항성과 위성을 창조하였다."],
-["1-3조","그와 동시에 짱수는 지구에 물과 생명을 내리고 30억년 간 첫 잠에 들었으니, 이를 1차 휴면기라 부른다."],
-["1-4조","30억년 후 공룡들에게 괴롭힘받던 고대생물들이 이수는 짱수다를 외치며 봉인을 푼 끝에, 짱수는 깨어났다."],
-["1-5조","짱수는 고대생물들을 괴롭히던 공룡들을 운석으로 없애버리고, 포유류를 진화시켜 인간을 창조했다."],
-["1-6조","인간을 창조한 짱수는 인간의 몸에 들어가 잠에 들었다. 이는 현재까지 일어나고 있는 2차 휴면기이다."]]},
+["1-1조","태초에 있던 신들의 마당에서 짱수가 스노우볼을 창조하다가 폭발이 일어났다. 모든 신은 기절했으며 오직 날아다니는 스파게티 괴물, 짱수만 살아남았다. 이는 빅뱅이다."],
+["1-2조","짱수는 날아다니는 스파게티 괴물이 우주의 일부를 채운 상태에서, 땅과 우주(딸기와 우유, 빵과 우유라는 해석도 존재한다.)의 기운이 모여 깨어났다."],
+["1-3조","짱수는 우주의 물질을 창조하고 잠에 들었다. 이를 1차 휴면기라 부른다."],
+["1-4조","그와 동시에 짱수는 지구에 물과 생명을 내리고 30억년 간 두 번째 잠에 들었으니, 이를 2차 휴면기라 부른다."],
+["1-5조","30억년 후 공룡들에게 괴롭힘받던 고대생물들이 이수는 짱수다를 외치며 봉인을 푼 끝에, 짱수는 깨어났다."],
+["1-6조","짱수는 고대생물들을 괴롭히던 공룡들을 운석으로 없애버리고, 포유류를 진화시켜 인간을 창조했다."],
+["1-7조","인간을 창조한 짱수는 인간의 몸에 들어가 잠에 들었다. 이는 현재까지 일어나고 있는 3차 휴면기이다."]]},
 {t:"제2장 가르침", v:[
 ["2-1조","이수는 짱수다를 외치어 봉인을 풀라."],
 ["2-2조","모든 종교는 결국 짱수로 귀결된다. 그러니, 다른 종교를 가진 이를 미워하지 말라."],
@@ -197,8 +223,9 @@ const CHAPTERS = [
 ["2-4조","성스러운 날에는 딸기나 우유, 혹은 딸기우유를 먹어라."],
 ["2-5조","‘이다솜은 모던이다’를 외치는 것도 매우 큰 도움이 된다."]]},
 {t:"제3장 축일과 위계", v:[
-["3-1조","짱수교의 축일은 교시일 11월 16일, 짱수 탄신일로 나뉜다."],
-["3-2조","짱수교는 교주, 학도, 신도로 나뉘며, 각 계급의 위계는 없다."]]}
+["3-1조","짱수교의 축일은 교시일 11월 16일, 짱수 탄신일, 경전탄생일 11월 23일, 기독자비일 12월 25일, 이슬람자비일 4월 22일, 불교자비일(부처님오신날)로 나뉜다."],
+["3-2조","짱수교는 교주, 학도, 신도로 나뉘며, 각 계급의 위계는 없다."],
+["3-3조","축일엔 제사로 짱수에게 빵, 딸기, 우유, 딸기우유 중 하나 이상을 바친다."]]}
 ];
 
 function h(tag, attrs, ...kids){
@@ -271,7 +298,7 @@ function renderChapter(){
   const c = CHAPTERS[cur];
   $("ch-title").textContent = c.t;
   const body = $("ch-body"); body.replaceChildren();
-  c.v.forEach(([k, v]) => body.append(h("p", {class:"verse", style:"font-size:" + fs + "px"}, h("b", {text: k + " "}), v)));
+  c.v.forEach(([k, v]) => body.append(h("p", {class:"verse", style:"font-size:" + fs + "px"}, h("b", {text: k + " "}), v, h("button", {class:"del", style:"margin-left:10px;font-size:13px;min-height:0;padding:0", text:"💬 토론", onclick(){ openDebate(k); }}))));
   $("toc").querySelectorAll("button").forEach((b, i) => b.setAttribute("aria-current", i === cur ? "true" : "false"));
   $("prev").disabled = cur === 0; $("next").disabled = cur === CHAPTERS.length - 1;
   $("prev").style.opacity = cur === 0 ? .4 : 1; $("next").style.opacity = cur === CHAPTERS.length - 1 ? .4 : 1;
@@ -593,10 +620,230 @@ function askNotifyPermission(){
   try { const r = Notification.requestPermission(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
 }
 
+/* ---------- 경전 토론방 (debate 컬렉션, 조항별) ---------- */
+const VERSES = CHAPTERS.flatMap(c => c.v.map(([k, v]) => ({key:k.replace("조", ""), label:k, text:v})));
+let dKey = VERSES[0].key, dUnsub = null, dMsgs = [];
+function renderDebateVerse(){ const v = VERSES.find(x => x.key === dKey); $("debate-verse").textContent = v ? v.label + " " + v.text : ""; }
+function renderDebateList(){
+  const box = $("debate-list"); box.replaceChildren();
+  if (!dMsgs.length) { box.append(h("p", {class:"note", style:"padding:12px 0", text:"아직 의견이 없습니다. 첫 의견을 남겨보세요."})); return; }
+  dMsgs.forEach(m => {
+    const row = h("div", {class:"cm"}, h("div", {class:"meta", text:m.author + " · " + fmt(m.createdAt)}), h("div", {class:"body", style:"padding:2px 0 0", text:m.body}));
+    if (session && (session.uid === m.authorId || isAdmin())) row.append(h("button", {class:"del", text:"삭제", onclick(){ if (fb) fb.F.deleteDoc(fb.F.doc(fb.db, "debate", m.id)).catch(() => {}); }}));
+    box.append(row);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+function renderDebateForm(){
+  const f = $("debate-form"); f.replaceChildren();
+  if (!session || !fb) { f.append(h("p", {class:"note", text:"의견은 로그인 후에 남길 수 있습니다."})); return; }
+  const inp = h("input", {maxlength:"300", placeholder:"이 조항에 대한 의견을 적어주세요", "aria-label":"토론 의견"});
+  const msg = h("p", {class:"note", style:"color:var(--accent);margin:6px 0 0"});
+  f.append(h("form", {class:"cm-form", async onsubmit(ev){
+    ev.preventDefault();
+    const body = inp.value.trim(); if (!body) return;
+    inp.disabled = true; msg.textContent = "";
+    try { await fb.F.addDoc(fb.F.collection(fb.db, "debate"), {key:dKey, body, author:session.name, authorId:session.uid, createdAt:Date.now()}); inp.value = ""; }
+    catch (e) { msg.textContent = failMsg(e, "의견을 올리지 못했습니다."); }
+    inp.disabled = false;
+  }}, inp, h("button", {type:"submit", class:"btn", text:"등록"})), msg);
+}
+function watchDebate(){
+  if (dUnsub) { dUnsub(); dUnsub = null; }
+  dMsgs = []; renderDebateVerse(); renderDebateList(); renderDebateForm();
+  if (!fb) return;
+  const F = fb.F;
+  dUnsub = F.onSnapshot(F.query(F.collection(fb.db, "debate"), F.where("key", "==", dKey)), snap => {
+    dMsgs = snap.docs.map(d => ({id:d.id, ...d.data()})).sort((a, b) => a.createdAt - b.createdAt);
+    $("debate-note").textContent = ""; renderDebateList();
+  }, () => { $("debate-note").textContent = "토론방을 불러오지 못했습니다."; });
+}
+function openDebate(label){
+  dKey = label.replace("조", ""); $("debate-key").value = dKey; watchDebate();
+  const sec = $("debate"); if (sec.scrollIntoView) sec.scrollIntoView({behavior:"smooth"});
+}
+function initDebate(){
+  const sel = $("debate-key");
+  VERSES.forEach(v => sel.append(h("option", {value:v.key, text:v.label})));
+  sel.addEventListener("change", () => { dKey = sel.value; watchDebate(); });
+  watchDebate();
+}
+
+/* ---------- 제사 리듬게임 ---------- */
+const HITY = 470;
+/* bpm: 속도 · step: 노트 간격(박) · off: 반박자 노트 확률 · chord: N박마다 동시치기(0이면 없음) · fall: 낙하 시간(초) · perf/good: 판정 범위(초) */
+const LEVELS = {
+  EASY:   {bpm:90,  step:2, off:0,   chord:0,  fall:2.2, perf:.09,  good:.20},
+  MILD:   {bpm:100, step:1, off:0,   chord:0,  fall:2.0, perf:.08,  good:.18},
+  MIDDLE: {bpm:110, step:1, off:0.2, chord:16, fall:1.8, perf:.07,  good:.16},
+  HARD:   {bpm:120, step:1, off:0.4, chord:8,  fall:1.6, perf:.06,  good:.15},
+  SEVERE: {bpm:140, step:1, off:0.7, chord:4,  fall:1.2, perf:.045, good:.12}
+};
+let LVN = "MIDDLE", LV = LEVELS[LVN];
+const LANES = [{k:"KeyD", e:"🍞", n:"빵", f:523.25}, {k:"KeyF", e:"🍓", n:"딸기", f:587.33}, {k:"KeyJ", e:"🥛", n:"우유", f:659.25}, {k:"KeyK", e:"🧃", n:"딸기우유", f:783.99}];
+const G = {running:false, notes:[], t0:0, score:0, combo:0, maxCombo:0, counts:{perfect:0, good:0, miss:0}, flash:"", flashT:0};
+let ac = null, sched = null, ranks = [], rankUnsub = null;
+
+function makeChart(){
+  const S = 60 / LV.bpm;
+  let seed = 20261123; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const notes = []; let last = -1;
+  for (let b = 4; b < 124; b += LV.step) {
+    let lane = Math.floor(rnd() * 4); if (lane === last) lane = (lane + 1 + Math.floor(rnd() * 3)) % 4; last = lane;
+    notes.push({t:b * S, lane});
+    if (LV.chord && b % LV.chord === LV.chord - 1) notes.push({t:b * S, lane:(lane + 2) % 4});
+    else if (LV.off && rnd() < LV.off) notes.push({t:(b + 0.5) * S, lane:(lane + 1 + Math.floor(rnd() * 3)) % 4});
+  }
+  return notes.map(n => ({...n, hit:false, miss:false}));
+}
+function gameReset(){ G.notes = makeChart(); G.score = 0; G.combo = 0; G.maxCombo = 0; G.counts = {perfect:0, good:0, miss:0}; G.flash = ""; G.flashT = 0; }
+function judge(lane, now){
+  let best = null;
+  for (const n of G.notes) if (!n.hit && !n.miss && n.lane === lane && Math.abs(n.t - now) <= LV.good && (!best || Math.abs(n.t - now) < Math.abs(best.t - now))) best = n;
+  if (!best) return null;
+  best.hit = true;
+  if (Math.abs(best.t - now) <= LV.perf) { G.counts.perfect++; G.score += 300; G.flash = "PERFECT"; } else { G.counts.good++; G.score += 100; G.flash = "GOOD"; }
+  G.combo++; G.maxCombo = Math.max(G.maxCombo, G.combo); G.flashT = now;
+  return G.flash;
+}
+function gameTick(now){
+  G.notes.forEach(n => { if (!n.hit && !n.miss && now - n.t > LV.good) { n.miss = true; G.counts.miss++; G.combo = 0; G.flash = "MISS"; G.flashT = now; } });
+  const lastT = G.notes.reduce((m, n) => Math.max(m, n.t), 0);
+  return G.notes.every(n => n.hit || n.miss) && now > lastT + 0.5;
+}
+function gameRank(){
+  const c = G.counts, total = c.perfect + c.good + c.miss, acc = total ? (c.perfect + c.good * 0.5) / total : 0;
+  return {acc, rank: acc >= 0.95 ? "S" : acc >= 0.85 ? "A" : acc >= 0.7 ? "B" : "C"};
+}
+
+function tone(f, dur, type, vol, when){
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(vol, when); g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  o.connect(g); g.connect(ac.destination); o.start(when); o.stop(when + dur + 0.02);
+}
+function kick(when){
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.frequency.setValueAtTime(150, when); o.frequency.exponentialRampToValueAtTime(40, when + 0.12);
+  g.gain.setValueAtTime(0.5, when); g.gain.exponentialRampToValueAtTime(0.0001, when + 0.2);
+  o.connect(g); g.connect(ac.destination); o.start(when); o.stop(when + 0.22);
+}
+function hat(when){
+  const len = Math.floor(ac.sampleRate * 0.05), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = buf; f.type = "highpass"; f.frequency.value = 7000;
+  g.gain.setValueAtTime(0.12, when); g.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
+  src.connect(f); f.connect(g); g.connect(ac.destination); src.start(when);
+}
+function startAudio(){
+  ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume();
+  G.t0 = ac.currentTime + 0.6; const S = 60 / LV.bpm;
+  let step = 0; const bass = [55, 55, 65.41, 49];
+  sched = setInterval(() => {
+    while (G.t0 + step * S / 2 < ac.currentTime + 0.25) {
+      const when = G.t0 + step * S / 2;
+      if (step % 2 === 0) { kick(when); if (step % 4 === 0) tone(bass[(step / 4) % 4], S * 1.8, "sawtooth", 0.06, when); } else hat(when);
+      step++;
+    }
+  }, 30);
+}
+
+const cv = $("game"), cx = cv.getContext("2d");
+const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function draw(now){
+  if (!cx) return;
+  const W = 400, H = 560, LW = W / 4;
+  cx.clearRect(0, 0, W, H); cx.fillStyle = cssv("--panel") || "#eee"; cx.fillRect(0, 0, W, H);
+  cx.strokeStyle = cssv("--rule") || "#ccc"; cx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { cx.beginPath(); cx.moveTo(i * LW, 0); cx.lineTo(i * LW, H); cx.stroke(); }
+  cx.strokeStyle = cssv("--accent") || "#a33"; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(0, HITY); cx.lineTo(W, HITY); cx.stroke();
+  cx.textAlign = "center"; cx.textBaseline = "middle"; cx.font = "30px serif";
+  G.notes.forEach(n => {
+    if (n.hit) return;
+    const y = HITY - (n.t - now) / LV.fall * HITY; if (y < -30 || y > H + 30) return;
+    cx.globalAlpha = n.miss ? 0.3 : 1; cx.fillText(LANES[n.lane].e, n.lane * LW + LW / 2, y);
+  });
+  cx.globalAlpha = 1; cx.fillStyle = cssv("--fg") || "#333"; cx.font = "14px sans-serif";
+  LANES.forEach((l, i) => cx.fillText(l.n + " (" + l.k.slice(3) + ")", i * LW + LW / 2, HITY + 40));
+  cx.font = "bold 22px sans-serif"; cx.textAlign = "left"; cx.fillText("점수 " + G.score, 12, 24);
+  cx.textAlign = "right"; cx.fillText(G.combo > 1 ? G.combo + " 콤보" : "", W - 12, 24);
+  if (G.flash && now - G.flashT < 0.5) { cx.textAlign = "center"; cx.font = "bold 28px sans-serif"; cx.fillStyle = cssv("--accent") || "#a33"; cx.fillText(G.flash, W / 2, 280); }
+}
+function watchRank(){
+  if (rankUnsub) { rankUnsub(); rankUnsub = null; }
+  ranks = []; renderRank(); $("rank-title").textContent = "랭킹 TOP 10 (" + LVN + ")";
+  if (!fb) return;
+  const F = fb.F;
+  rankUnsub = F.onSnapshot(F.query(F.collection(fb.db, "scores"), F.where("level", "==", LVN)), snap => {
+    ranks = snap.docs.map(d => d.data()).sort((a, b) => b.score - a.score).slice(0, 10); renderRank();
+  }, () => {});
+}
+function renderRank(){
+  const ol = $("rank"); ol.replaceChildren();
+  if (!ranks.length) { ol.append(h("li", {text:"아직 기록이 없습니다."})); return; }
+  ranks.forEach(r => ol.append(h("li", {text:r.name + " — " + r.score + "점 (최대 " + r.maxCombo + "콤보)"})));
+}
+async function submitScore(){
+  if (!fb || !session) return "로그인하면 점수가 랭킹에 올라갑니다.";
+  try {
+    const ref = fb.F.doc(fb.db, "scores", LVN + "_" + session.uid), old = await fb.F.getDoc(ref);
+    if (!old.exists() || old.data().score < G.score) { await fb.F.setDoc(ref, {level:LVN, name:session.name, score:G.score, maxCombo:G.maxCombo, createdAt:Date.now()}); return "랭킹에 등록했어요!"; }
+    return "최고 기록을 넘지 못해 랭킹은 그대로예요.";
+  } catch (e) { return failMsg(e, "점수를 올리지 못했습니다."); }
+}
+async function endGame(){
+  G.running = false; clearInterval(sched);
+  const {acc, rank} = gameRank(), res = $("game-result");
+  res.textContent = LVN + " · " + rank + "등급 · " + G.score + "점 · 정확도 " + Math.round(acc * 100) + "% · 최대 " + G.maxCombo + "콤보";
+  $("game-start").disabled = false; $("game-level").disabled = false; $("game-stop").disabled = true; $("game-start").textContent = "다시 하기";
+  res.textContent += " · " + await submitScore();
+}
+function stopGame(){
+  if (!G.running) return;
+  G.running = false; clearInterval(sched); if (ac) ac.suspend();
+  gameReset(); draw(-1);
+  $("game-start").disabled = false; $("game-start").textContent = "다시 하기"; $("game-level").disabled = false; $("game-stop").disabled = true;
+  $("game-result").textContent = "게임을 중단했어요. (기록은 저장되지 않아요)";
+}
+function loop(){
+  if (!G.running) return;
+  const now = ac.currentTime - G.t0, done = gameTick(now);
+  draw(now);
+  if (done) { endGame(); return; }
+  requestAnimationFrame(loop);
+}
+function startGame(){
+  gameReset(); G.running = true; $("game-start").disabled = true; $("game-level").disabled = true; $("game-stop").disabled = false; $("game-result").textContent = "";
+  startAudio(); requestAnimationFrame(loop);
+}
+function press(lane){
+  if (!G.running) return;
+  const now = ac.currentTime - G.t0;
+  if (judge(lane, now)) tone(LANES[lane].f, 0.15, "sine", 0.15, ac.currentTime);
+}
+function initGame(){
+  $("game-start").addEventListener("click", startGame);
+  $("game-stop").addEventListener("click", stopGame);
+  window.addEventListener("keydown", ev => {
+    if (ev.code === "Escape" && G.running) { stopGame(); return; }
+    const i = LANES.findIndex(l => l.k === ev.code), a = document.activeElement;
+    if (i < 0 || !G.running || ev.repeat || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+    ev.preventDefault(); press(i);
+  });
+  cv.addEventListener("pointerdown", ev => { const r = cv.getBoundingClientRect(); press(Math.min(3, Math.max(0, Math.floor((ev.clientX - r.left) / r.width * 4)))); });
+  $("game-level").addEventListener("change", () => {
+    LVN = $("game-level").value; LV = LEVELS[LVN]; $("game-result").textContent = "";
+    gameReset(); draw(-1); watchRank();
+  });
+  gameReset(); draw(-1); watchRank();
+}
+
 /* 화면은 먼저 그리고, Firebase는 그다음에 연결합니다 */
 renderAuth(); renderChapter(); renderBoard();
+initDebate(); initGame();
 askNotifyPermission();
-["click", "keydown", "touchstart"].forEach(ev => window.addEventListener(ev, askNotifyPermission, {once:true}));
+["pointerup", "touchend", "mousedown", "click", "keydown"].forEach(ev => window.addEventListener(ev, askNotifyPermission, {once:true}));
 
 async function initFirebase(){
   if (!configured) return;
@@ -606,16 +853,18 @@ async function initFirebase(){
     const app = A.initializeApp(firebaseConfig);
     fb = { auth: Au.getAuth(app), db: F.getFirestore(app), Au, F };
     fbState = "ready";
+    watchDebate();
     F.onSnapshot(F.collection(fb.db, "admins"), snap => {
       const before = isAdmin();
       adminIds = new Set(snap.docs.map(d => d.id));
       renderAuth(); renderAdminList();
-      if (isAdmin() !== before) renderBoard();
+      if (isAdmin() !== before) { renderBoard(); renderDebateList(); }
     }, () => {});
     Au.onAuthStateChanged(fb.auth, user => {
       session = user ? mkSession(user.uid, user.displayName || user.email.split("@")[0], user.email) : null;
-      watchNotis(); renderAuth(); renderBoard();
+      watchNotis(); renderAuth(); renderBoard(); renderDebateForm();
     });
+    watchRank();
     const timer = setTimeout(() => { if (!live) setNote("연결이 늦어지고 있어요…"); }, 10000);
     F.onSnapshot(F.query(F.collection(fb.db, "posts"), F.orderBy("createdAt", "desc"), F.limit(100)), snap => {
       live = !snap.metadata.fromCache;
